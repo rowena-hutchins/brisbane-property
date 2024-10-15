@@ -1,0 +1,344 @@
+---
+title: "Brisbane AirBnB Property Analysis"
+author: "Rowena Hutchins"
+output: html_document
+---
+
+Aim: Conduct analysis of public AirBnB Brisbane Property Listings data
+Data source: https://data.insideairbnb.com/australia/qld/brisbane/2024-04-12/data/listings.csv.gz
+Data dictionary: https://docs.google.com/spreadsheets/d/1iWCNJcSutYqpULSQHlNyGInUvHg2BoUGoNRIGa6Szc4/edit
+
+### First steps on extracting data
+
+- Inspected file in Notepad
+- Imported file into Excel Using Get Data feature to avoid unwanted data type changes
+- Inspected data
+- Copied header row and sample data
+- Transposed into new sheet
+- Identified columns required in specification, and appropriate data types
+- Identified unnecessary columns
+- Set up code for each column to either import with desired data type or skip
+    =[fieldname]&" = col_"&[datatype]&"(),"
+- Copied code into RStudio as part of read_csv() function
+- Inspected imported data
+- Note 'Price' initially imported as character due to $ symbol, for later conversion.
+
+### Import desired columns in appropriate format
+
+```{r}
+library(tidyverse)
+
+listings <- read_csv("listings.csv", na = "", col_types = cols(
+  id = col_character(),
+  listing_url = col_skip(),
+  scrape_id = col_skip(),
+  last_scraped = col_skip(),
+  source = col_skip(),
+  name = col_character(),
+  description = col_character(),
+  neighborhood_overview = col_skip(),
+  picture_url = col_skip(),
+  host_id = col_skip(),
+  host_url = col_skip(),
+  host_name = col_character(),
+  host_since = col_skip(),
+  host_location = col_skip(),
+  host_about = col_skip(),
+  host_response_time = col_skip(),
+  host_response_rate = col_skip(),
+  host_acceptance_rate = col_skip(),
+  host_is_superhost = col_logical(),
+  host_thumbnail_url = col_skip(),
+  host_picture_url = col_skip(),
+  host_neighbourhood = col_skip(),
+  host_listings_count = col_skip(),
+  host_total_listings_count = col_skip(),
+  host_verifications = col_skip(),
+  host_has_profile_pic = col_skip(),
+  host_identity_verified = col_skip(),
+  neighbourhood = col_skip(),
+  neighbourhood_cleansed = col_character(),
+  neighbourhood_group_cleansed = col_skip(),
+  latitude = col_skip(),
+  longitude = col_skip(),
+  property_type = col_character(),
+  room_type = col_character(),
+  accommodates = col_integer(),
+  bathrooms = col_skip(),
+  bathrooms_text = col_character(),
+  bedrooms = col_integer(),
+  beds = col_integer(),
+  amenities = col_character(),
+  price = col_character(),
+  minimum_nights = col_skip(),
+  maximum_nights = col_skip(),
+  minimum_minimum_nights = col_skip(),
+  maximum_minimum_nights = col_skip(),
+  minimum_maximum_nights = col_skip(),
+  maximum_maximum_nights = col_skip(),
+  minimum_nights_avg_ntm = col_skip(),
+  maximum_nights_avg_ntm = col_skip(),
+  calendar_updated = col_skip(),
+  has_availability = col_skip(),
+  availability_30 = col_skip(),
+  availability_60 = col_skip(),
+  availability_90 = col_skip(),
+  availability_365 = col_skip(),
+  calendar_last_scraped = col_skip(),
+  number_of_reviews = col_integer(),
+  number_of_reviews_ltm = col_integer(),
+  number_of_reviews_l30d = col_skip(),
+  first_review = col_skip(),
+  last_review = col_skip(),
+  review_scores_rating = col_double(),
+  review_scores_accuracy = col_double(),
+  review_scores_cleanliness = col_double(),
+  review_scores_checkin = col_double(),
+  review_scores_communication = col_double(),
+  review_scores_location = col_double(),
+  review_scores_value = col_double(),
+  license = col_skip(),
+  instant_bookable = col_skip(),
+  calculated_host_listings_count = col_skip(),
+  calculated_host_listings_count_entire_homes = col_skip(),
+  calculated_host_listings_count_private_rooms = col_skip(),
+  calculated_host_listings_count_shared_rooms = col_skip(),
+  reviews_per_month = col_skip()
+))
+
+listings <- listings %>%
+  mutate(price = gsub("[$,]","",price),
+         price = if_else(price == "", NA_real_, as.numeric(price)))
+
+summary(listings)
+```
+
+### Count listing that meet specific criteria
+
+Count the number of listings matching the following criteria:
+a. Listings with 'Airport' in their name (ignoring case sensitivity).
+b. Listings with 'Airport' and ‘CBD’ in their name (ignoring case sensitivity).
+
+```{r}
+count_airport <- sum(str_detect(str_to_lower(listings$name),"airport"))
+print("Listings with 'airport' in their name:")
+count_airport
+
+count_airport_and_cbd <- sum(
+  str_detect(str_to_lower(listings$name),"airport") & 
+  str_detect(str_to_lower(listings$name),"cbd")
+  )
+print("Listings with 'airport' and 'CBD' in their name:")
+count_airport_and_cbd
+```
+
+### Top ten neighbourhoods by review numbers
+
+Include average review score rating.
+
+```{r}
+top_ten_neighbourhoods <- listings %>%
+  group_by(neighbourhood=neighbourhood_cleansed) %>%
+  summarise(
+    reviews = sum(number_of_reviews, na.rm = TRUE),
+    av_rating = round(mean(review_scores_rating, na.rm = TRUE),3)
+    ) %>%
+  arrange(desc(reviews)) %>%
+  head(10)
+
+top_ten_neighbourhoods
+```
+
+### Compare review scores and counts of Superhost vs non-superhost
+
+```{r}
+reviews_by_host_status <- listings %>%
+  group_by(host_status=host_is_superhost) %>%
+  summarise(
+    av_rating = round(mean(review_scores_rating, na.rm = TRUE),3),
+    review_count = sum(number_of_reviews, na.rm = TRUE)
+    )
+
+reviews_by_host_status <- reviews_by_host_status %>%
+  mutate(host_status = case_when(
+    host_status == TRUE ~ "Superhost",
+    host_status == FALSE ~ "non-Superhost",
+    is.na(host_status) ~ "Unknown"
+    ))
+
+reviews_by_host_status$host_status <- factor(reviews_by_host_status$host_status, c("Superhost","non-Superhost","Unknown"))
+
+reviews_by_host_status <- reviews_by_host_status %>%
+  arrange(host_status)
+
+reviews_by_host_status
+  
+```
+
+### Wynnum properties
+
+Display the average price and average review score rating of each property type in ‘Wynnum’.
+
+```{r}
+Wynnum_properties <- listings %>%
+  filter(neighbourhood_cleansed == "Wynnum") %>%
+  group_by(property_type) %>%
+  summarise(
+    av_price = round(mean(price, na.rm = TRUE),2),
+    av_rating = round(mean(review_scores_rating, na.rm = TRUE),3)
+    )
+
+Wynnum_properties
+```
+
+### Find accommodation options in West End
+
+Chosen criteria:
+  Neighbourhood - West End
+  Max price - $400
+  Property type - entire rental unit or entire home
+  Required amenities - single level home with self check-in
+  Accommodates - at least 4 people
+
+```{r}
+#filter for desired criteria
+filtered_properties <- listings %>%
+  filter(neighbourhood_cleansed == "West End") %>%
+  filter(price <= 400) %>%
+  filter(property_type == "Entire rental unit" | property_type == "Entire home") %>%
+  filter(accommodates >= 4) %>%
+  filter(
+    str_detect(str_to_lower(amenities),"single level home") &
+    str_detect(str_to_lower(amenities),"self check-in")
+    )
+
+#select fields    
+accommodation_options <- filtered_properties[, c(
+  "name",
+  "neighbourhood_cleansed", 
+  "price", 
+  "property_type",
+  "accommodates",
+  "amenities")]
+
+accommodation_options <- accommodation_options %>%
+  rename(neighbourhood = neighbourhood_cleansed)
+
+accommodation_options
+```
+
+### Show bar chart of listings by property type
+
+```{r}
+listings_per_property_type <- listings %>%
+  group_by(property_type) %>%
+  summarise(
+    num_listings = n()) %>%
+  arrange(desc(num_listings)) %>%
+  head(10)
+
+listings_per_property_type
+
+listings_per_property_type %>%
+  mutate(property_type = factor(property_type, levels = rev(property_type))) %>%
+  ggplot() +
+  aes(x = num_listings, y = property_type) +
+  geom_col() +
+  labs(x = "Number of Listings", y = "Property Type", title = "Listings per Property Type")
+```
+Summary of insights:
+
+This chart shows that the vast majority of listings are for entire rental units, which account for almost four times the number of listings as the next largest group.
+
+This likely to be much higher than proportion of units to houses in general housing stock (although additional research would be required to verify this). 
+Reasons for this could be inferred as
+- Units are more likely to be centrally located
+- Full homes are not required for short term stays
+- Entire properties are preferred over shared spaces for privacy and security reasons.
+Again, additional data would be required to investigate reasons further.
+
+Research that could be conducted with the current data set could include:
+- Correlation between booking popularity and listing numbers: are there more units due to supply or demand?
+
+(The smaller end of the scale might also be worth investigation. Interestingly, the data set includes 1 castle, 1 island and 1 cave, but surprisingly 2 private rooms in caves.)
+
+### Analyse review scores based on various categories
+
+```{r}
+#First, review data is pivoted into long format
+
+listings_long <- listings %>%
+  pivot_longer(
+    cols = starts_with("review_scores_"), 
+    names_to = "review_category",
+    names_prefix = "review_scores_",
+    values_to = "review_scores"
+  )
+
+review_data <- listings_long[, c(
+  "review_category",
+  "review_scores")]
+
+review_data$review_category <- replace(review_data$review_category, review_data$review_category == "rating","overall_rating")
+
+review_data$review_category <- factor(review_data$review_category, c(
+  "overall_rating",
+  "accuracy",
+  "cleanliness",
+  "checkin",
+  "communication",
+  "location",
+  "value"))
+
+review_data <- review_data %>%
+  arrange(review_category)
+
+#filter out rows where revew_score is blank
+review_data <- review_data %>%
+  filter(is.finite(review_scores))
+
+#Plot review data as a series of box plots
+ggplot(review_data) +
+    aes(x = review_category, y = review_scores, fill = review_category) +
+    geom_boxplot() + 
+    labs(title = "Review scores by category", x = "Category", y = "Score")
+
+#Limit box plot range
+ggplot(review_data) +
+    aes(x = review_category, y = review_scores, fill = review_category) +
+    ylim(4.6,5.0) +
+    geom_boxplot() + 
+    labs(title = "Review scores by category with limited scale", x = "Category", y = "Score")
+
+#Plot value scores against price and host status
+listings2 <- listings %>%
+  mutate(host_is_superhost = case_when(
+    host_is_superhost == TRUE ~ "Superhost",
+    host_is_superhost == FALSE ~ "non-Superhost",
+    is.na(host_is_superhost) ~ "Unknown"
+    ))
+ggplot(listings2) +
+  aes(x = price, y = review_scores_value, color = host_is_superhost) +
+  geom_point() +
+  labs(title = "Value scores by price - all properties", x = "Price", y = "Score", color = "Host Status")
+
+#Limit scatter plot domain to focus on premium properties
+ggplot(listings2) +
+  aes(x = price, y = review_scores_value) +
+  xlim(1000,12000) +
+  geom_point() +
+  labs(title = "Value scores by price - premium properties", x = "Price", y = "Score")
+```
+Note - limiting ranges generates a warning that some data is omitted, but allows us to focus analysis on particular parts of the distribution. Titles indicate data set limitations.
+
+### Summary
+
+Using box plots to analyse review score distribution, it is clear that most scores are close to or equal to 5 (the maximum score). Fifty percent (the second and third quartiles) of all reviews lie within 4.6 to 5. The most variation is in the value score, which has a median value of about 4.86.
+
+After filtering out blank review scores, we have 27,941 data points. The vast majority of reviews are above 4.6. Limiting the box plot range to 4.6 to 5.0 only cuts off 5.066 data points, but gives a much clearer picture of score distribution, particularly for the second and third quartiles.
+
+Looking at the value score compared to price and host status, it is clear that premium properties score high on value, despite ranging in price to over $10,000. Super-host properties score 3 or above.
+
+Overall there is not much variation in review scores, and better measures of quality and satisfaction may exist, such as frequency of re-booking. However, given the lack of variation, a review score of three or below should probably be treated with caution when selecting a property.
+
+
