@@ -54,5 +54,6 @@ The analysis shows that entire rental units dominate the market, and provides in
 ### How to Run
 
 1. Clone the repository.
-2. Open `BrisbaneAirbnbPropertyAnalysis.Rmd` in RStudio.
-3. Render the document to see the analysis.
+2. Copy 'Listings.csv' file to same location.
+3. Open `BrisbaneAirbnbPropertyAnalysis.Rmd` in RStudio.
+4. Render the document to see the analysis.
